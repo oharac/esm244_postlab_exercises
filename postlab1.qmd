@@ -1,0 +1,122 @@
+---
+title: "Week 1 post-lab practice"
+format: 
+  html:
+    code-folding: show
+    toc: true
+execute:
+  echo: true
+  message: false
+  warning: false
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(gapminder)
+```
+
+## Analysis part 1:
+
+Continent-level mean per capita GDP (gross domestic product per person) is population-weighted average of per-capita GDP.
+
+```{r}
+continent_mean_gdp <- gapminder %>%
+  group_by(year, continent) %>%
+  summarize(mean_gdp = sum(gdpPercap * pop) / sum(pop),
+            ### let's log transform the data in our analysis
+            log_mean_gdp = log(mean_gdp)) %>%
+  ungroup()
+```
+
+### Plot untransformed data
+
+```{r}
+ggplot(continent_mean_gdp, aes(x = year, y = mean_gdp, color = continent)) +
+  ### continents as points:
+  geom_point() +
+  ### AND/OR continents as lines:
+  geom_line() +
+  ### use original data to show countries, still by year and continent,
+  ### using alpha to fade the points relative to the main points.
+  ### geom_jitter shuffles them a little so points don't stack on
+  ### top of one another!
+  geom_jitter(data = gapminder, aes(y = gdpPercap), alpha = .2) +
+  theme_minimal() +
+  labs(x = 'Year', y = 'Per capita GDP ($)', color = 'Continent')
+```
+
+### Plot log-transformed data
+
+Ways to plot transformed data:
+
+-   Log-transform in the dataframe (as I've done above)
+-   Log-transform on the fly (as seen in code below, line 60-61)
+-   Don't transform, but use log-scaled axis (see next chunk)
+
+#### Log-transform in data frame and on the fly
+
+```{r}
+ggplot(continent_mean_gdp, aes(x = year, y = log_mean_gdp, color = continent)) +
+  geom_point() +
+  geom_line() +
+  ### note, log-transforming on the fly for our y axis here!
+  geom_jitter(data = gapminder, aes(y = log(gdpPercap)), alpha = .2) +
+  theme_minimal() +
+  labs(x = 'Year', y = 'log(per capita GDP ($))', color = 'Continent')
+```
+
+#### Plot untransformed data but on logarithmic axis
+
+```{r}
+ggplot(continent_mean_gdp, aes(x = year, y = mean_gdp, color = continent)) +
+  geom_point() +
+  geom_line() +
+  geom_jitter(data = gapminder, aes(y = gdpPercap), alpha = .2) +
+  theme_minimal() +
+  labs(x = 'Year', y = 'log(per capita GDP ($))', color = 'Continent') +
+  scale_y_log10()
+```
+
+Note: log(mean_gdp) is the *natural log* (base *e*) while scale_y_log10() is the log~10~ or base 10. So the y axis numbers will be different, even if the shape is the same!
+
+## Analysis part 2
+
+Answers may vary depending on choice of log-transformed or untransformed data. I'll briefly show both.
+
+### Un-transformed
+
+```{r}
+gdp_lm <- lm(mean_gdp ~ year + continent, data = continent_mean_gdp)
+
+summary(gdp_lm)
+
+gdp_coef <- coefficients(gdp_lm)
+
+gdp_coef
+```
+
+### Log-transformed
+
+```{r}
+log_gdp_lm <- lm(log_mean_gdp ~ year + continent, data = continent_mean_gdp)
+
+summary(log_gdp_lm)
+
+log_gdp_coef <- coefficients(log_gdp_lm)
+
+log_gdp_coef
+```
+
+## Followup questions
+
+1.  Trends: In both plots, we see most continents on average have increasing values. Here we'll look at coefficients for both models.
+2.  Coefficients (non-transformed):
+    a.  Year: This coefficient indicates that on average, across all continents, per capita GDP is increasing by `r round(gdp_coef['year'], 2)` per year.
+    b.  The continent coefficients show how much greater, on average, per capita GDP is for each continent (shift in the intercept), relative to a baseline of Africa (which is baseline in this case because it is alphabetically first)
+    c.  The intercept would be the predicted per capita GDP (if our model is accurate) at year zero. Obviously our model breaks down somewhere along the way...
+3.  Coefficients (log-transformed):
+    a.  Year: on average, this shows that log(per cap gdp) is increasing by `r round(log_gdp_coef['year'], 3)` per year. Through the magic of logarithms, the slope here indicates growth rate, so this indicates an average growth rate of per-cap GDP of about `r round(log_gdp_coef['year'], 3) * 100`%.
+    b.  As for the non-transformed, the continent coefficients show a shift in the intercept, which still means a difference in GDP of a continent relative to Africa's, though here log-transformed.
+    c.  Our intercept again shows the (log-transformed) predicted income at year zero.
+4.  Because GDP growth is most likely exponential over time, the log-transformed model is theoretically a better choice. Because the slopes are (relatively) similar, it shows that per cap GDP growth is pretty consistent across continents (except Africa), even if the starting points are different. In either case, we know that any predictions we make with our model should be limited to a fairly narrow time frame - certainly not 2000 years, but maybe 20-30 years.
